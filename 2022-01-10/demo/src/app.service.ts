@@ -8,8 +8,10 @@ export class AppService {
   headless = false; // 本地调试使用false 打开浏览器窗口方便调试
   url = 'https://juejin.cn/user/center/signin'; // 要访问的url
   cookieData = {};
-  page;
-  constructor() { }
+  constructor() {
+    this.job();
+    // this.init();
+  }
 
   getHello() {
     return { data: '6666666' };
@@ -21,7 +23,7 @@ export class AppService {
     return new Promise(async (resolve, reject) => {
       try {
         const data = await fs.readFileSync('src/data.json').toString();
-        this.cookieData = JSON.parse(data);
+        this.cookieData = JSON.parse(data) || {};
 
       } catch (error) {
         reject(error);
@@ -32,51 +34,57 @@ export class AppService {
 
   // 爬虫
   async signin(cookieList) {
-    const url = this.url;
-    const browser = await puppeteer.launch({
-      headless: this.headless,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    this.page = await browser.newPage();
-    // 跳转页面前设置cookie
-    await this.setCookie(cookieList);
+    return new Promise(async (resolve, reject) => {
+      const url = this.url;
+      const browser = await puppeteer.launch({
+        headless: this.headless,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      });
+      const page = await browser.newPage();
+      // 跳转页面前设置cookie
+      await this.setCookie(cookieList, page);
 
-    await this.page.goto(url);
-    // 等待时间
-    await this.page.waitForTimeout(3000);
-    // 监听console.log 否则page.evaluate里面的console看不到
-    this.page.on('console', (msg) => {
-      for (let i = 0; i < msg.args().length; ++i)
-        console.log(`page: ${msg.args()[i]}`); // 这句话的效果是打印到你的代码的控制台
-    });
-    const bodyHandle = await this.page.$('body');
-    // 代码运行到浏览器里面。不是后台服务里面
-    const dataMsg = await this.page.evaluate(async (body) => {
-      let msg = '';
-      let btn: any = body.querySelector('.signin.btn');
-      if (btn) {
-        btn.click();
-        msg = '签到成功';
-      } else {
-        btn = body.querySelector('.signedin.btn');
-        const n = document.querySelector(
-          '.figure-card.large-card span',
-        ).textContent;
+      await page.goto(url);
+      // 等待时间
+      await page.waitForTimeout(3000);
+      // 监听console.log 否则page.evaluate里面的console看不到
+      page.on('console', (msg) => {
+        for (let i = 0; i < msg.args().length; ++i)
+          console.log(`page: ${msg.args()[i]}`); // 这句话的效果是打印到你的代码的控制台
+      });
+      const bodyHandle = await page.$('body');
+      // 代码运行到浏览器里面。不是后台服务里面
+      const dataMsg = await page.evaluate(async (body) => {
+        let msg = '';
+        let btn: any = body.querySelector('.signin.btn');
         if (btn) {
           btn.click();
-          msg = '已经签到,当前钻石数：' + n;
+          msg = '签到成功';
         } else {
-          msg = '签到失败';
+          btn = body.querySelector('.signedin.btn');
+          const n = document.querySelector(
+            '.figure-card.large-card span',
+          ).textContent;
+          if (btn) {
+            btn.click();
+            msg = '已经签到,当前钻石数：' + n;
+          } else {
+            msg = '签到失败';
+          }
         }
-      }
-      console.log(msg);
+        console.log(msg);
 
-      return Promise.resolve(msg);
-    }, bodyHandle);
-    await this.page.waitForTimeout(5000);
-    // 关闭浏览器
-    // await this.page.close();
-    return { success: true, data: dataMsg };
+        return Promise.resolve(msg);
+      }, bodyHandle);
+      await page.waitForTimeout(5000);
+      // 关闭页面
+      await page.close();
+      // 关闭浏览器
+      await browser.close();
+      resolve({ success: true, data: dataMsg });
+
+    });
+
   }
 
   // 循环设置cookie，爬虫签到
@@ -85,14 +93,14 @@ export class AppService {
     const arr = Object.keys(this.cookieData);
     for (let i = 0; i < arr.length; i++) {
       const cookieList = this.cookieData[arr[i]];
-      this.signin(cookieList);
+      console.log('i=' + i);
+
+      await this.signin(cookieList);
     }
   }
 
-  async setCookie(cookieList: any[]) {
+  async setCookie(cookieList: any[], page) {
     return new Promise(async (resolve, reject) => {
-      console.log(cookieList);
-
       // 处理脏数据
       if (!Array.isArray(cookieList)) {
         reject('set cookie err,cookieList must be array');
@@ -112,7 +120,7 @@ export class AppService {
         };
         list.push(item);
       });
-      await this.page.setCookie(...(list as any));
+      await page.setCookie(...(list as any));
       resolve(true)
     });
   }
@@ -129,9 +137,9 @@ export class AppService {
   // 更新cookie
   async addCookie(name: string, cookie: any[]) {
     const data = await fs.readFileSync('src/data.json').toString();
-    this.cookieData = JSON.parse(data);
+    this.cookieData = JSON.parse(data) || {};
     this.cookieData[name] = cookie;
-    console.log(this.cookieData);
+
     let msg;
     try {
       msg = await this.signin(cookie);

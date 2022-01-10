@@ -19,6 +19,7 @@ let AppService = class AppService {
         this.headless = false;
         this.url = 'https://juejin.cn/user/center/signin';
         this.cookieData = {};
+        this.job();
     }
     getHello() {
         return { data: '6666666' };
@@ -27,7 +28,7 @@ let AppService = class AppService {
         return new Promise(async (resolve, reject) => {
             try {
                 const data = await fs.readFileSync('src/data.json').toString();
-                this.cookieData = JSON.parse(data);
+                this.cookieData = JSON.parse(data) || {};
             }
             catch (error) {
                 reject(error);
@@ -36,55 +37,59 @@ let AppService = class AppService {
         });
     }
     async signin(cookieList) {
-        const url = this.url;
-        const browser = await puppeteer.launch({
-            headless: this.headless,
-            args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        });
-        this.page = await browser.newPage();
-        await this.setCookie(cookieList);
-        await this.page.goto(url);
-        await this.page.waitForTimeout(3000);
-        this.page.on('console', (msg) => {
-            for (let i = 0; i < msg.args().length; ++i)
-                console.log(`page: ${msg.args()[i]}`);
-        });
-        const bodyHandle = await this.page.$('body');
-        const dataMsg = await this.page.evaluate(async (body) => {
-            let msg = '';
-            let btn = body.querySelector('.signin.btn');
-            if (btn) {
-                btn.click();
-                msg = '签到成功';
-            }
-            else {
-                btn = body.querySelector('.signedin.btn');
-                const n = document.querySelector('.figure-card.large-card span').textContent;
+        return new Promise(async (resolve, reject) => {
+            const url = this.url;
+            const browser = await puppeteer.launch({
+                headless: this.headless,
+                args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            });
+            const page = await browser.newPage();
+            await this.setCookie(cookieList, page);
+            await page.goto(url);
+            await page.waitForTimeout(3000);
+            page.on('console', (msg) => {
+                for (let i = 0; i < msg.args().length; ++i)
+                    console.log(`page: ${msg.args()[i]}`);
+            });
+            const bodyHandle = await page.$('body');
+            const dataMsg = await page.evaluate(async (body) => {
+                let msg = '';
+                let btn = body.querySelector('.signin.btn');
                 if (btn) {
                     btn.click();
-                    msg = '已经签到,当前钻石数：' + n;
+                    msg = '签到成功';
                 }
                 else {
-                    msg = '签到失败';
+                    btn = body.querySelector('.signedin.btn');
+                    const n = document.querySelector('.figure-card.large-card span').textContent;
+                    if (btn) {
+                        btn.click();
+                        msg = '已经签到,当前钻石数：' + n;
+                    }
+                    else {
+                        msg = '签到失败';
+                    }
                 }
-            }
-            console.log(msg);
-            return Promise.resolve(msg);
-        }, bodyHandle);
-        await this.page.waitForTimeout(5000);
-        return { success: true, data: dataMsg };
+                console.log(msg);
+                return Promise.resolve(msg);
+            }, bodyHandle);
+            await page.waitForTimeout(5000);
+            await page.close();
+            await browser.close();
+            resolve({ success: true, data: dataMsg });
+        });
     }
     async init() {
         await this.getCookieData();
         const arr = Object.keys(this.cookieData);
         for (let i = 0; i < arr.length; i++) {
             const cookieList = this.cookieData[arr[i]];
-            this.signin(cookieList);
+            console.log('i=' + i);
+            await this.signin(cookieList);
         }
     }
-    async setCookie(cookieList) {
+    async setCookie(cookieList, page) {
         return new Promise(async (resolve, reject) => {
-            console.log(cookieList);
             if (!Array.isArray(cookieList)) {
                 reject('set cookie err,cookieList must be array');
             }
@@ -102,7 +107,7 @@ let AppService = class AppService {
                 };
                 list.push(item);
             });
-            await this.page.setCookie(...list);
+            await page.setCookie(...list);
             resolve(true);
         });
     }
@@ -114,9 +119,8 @@ let AppService = class AppService {
     }
     async addCookie(name, cookie) {
         const data = await fs.readFileSync('src/data.json').toString();
-        this.cookieData = JSON.parse(data);
+        this.cookieData = JSON.parse(data) || {};
         this.cookieData[name] = cookie;
-        console.log(this.cookieData);
         let msg;
         try {
             msg = await this.signin(cookie);
