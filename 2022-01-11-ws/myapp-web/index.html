@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+
+<body>
+
+</body>
+<script>
+  function createWs() {
+    const ws = new WebSocket('ws://localhost:3002')
+    ws.addEventListener('open', (event) => {
+      console.log('ws 连接成功', event)
+      ws.send(
+        JSON.stringify({
+          event: 'events',
+          data: '测试ws 发送数据 hello',
+        })
+      )
+    })
+
+    ws.addEventListener('message', (event) => {
+      const data = event.data
+      console.log('ws message data', data)
+    })
+    ws.addEventListener('error', (event) => {
+      console.log('ws 连接失败', event)
+    })
+  }
+  createWs()
+  // 适当时机关闭ws
+  // ws.close()
+</script>
+
+</html>
