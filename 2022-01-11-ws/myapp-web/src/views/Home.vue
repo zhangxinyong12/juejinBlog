@@ -12,24 +12,35 @@
         <div>{{ h }}</div>
       </li>
     </ul>
-    <div class="ipt" v-if="!isSubmit">
-      <div>
-        <span>房间：</span>
-        <input type="text" v-model="form.room" />
-      </div>
-      <div>
-        <span>姓名：</span>
-        <input type="text" v-model="form.name" />
-      </div>
-      <div class="btn">
-        <button @click="submit">提交后开始</button>
-      </div>
-    </div>
+
+    <a-modal
+      title="匹配"
+      :visible="visible"
+      @ok="submit"
+      :closable="false"
+      wrapClassName="ipt-box"
+    >
+      <a-form-model
+        ref="ruleForm"
+        :model="form"
+        :rules="rules"
+        :label-col="labelCol"
+        :wrapper-col="wrapperCol"
+      >
+        <a-form-model-item ref="room" label="房间号" prop="room">
+          <a-input v-model="form.room" />
+        </a-form-model-item>
+        <a-form-model-item ref="name" label="姓名" prop="name">
+          <a-input v-model="form.name" />
+        </a-form-model-item>
+      </a-form-model>
+    </a-modal>
   </div>
 </template>
 
 <script>
 // @ is an alias to /src
+
 // import HelloWorld from '@/components/HelloWorld.vue'
 export default {
   name: 'Home',
@@ -38,17 +49,35 @@ export default {
     const time = 10
 
     return {
+      labelCol: { span: 4 },
+      wrapperCol: { span: 14 },
+      rules: {
+        name: [
+          {
+            required: true,
+            trigger: 'blur',
+          },
+        ],
+        room: [
+          {
+            required: true,
+            trigger: 'blur',
+          },
+        ],
+      },
+
+      form: {
+        room: '666',
+        name: 'zhangsan',
+      },
+      visible: true,
       time,
       nowTime: time * 1000,
       timeId: 0,
       list: [1, 2, 3, 4],
       h: 20,
-      form: {
-        room: '666',
-        name: 'zhangsan',
-      },
-      isSubmit: false,
       ws: '',
+      isStart: false,
     }
   },
   mounted() {
@@ -62,29 +91,33 @@ export default {
   },
   methods: {
     add() {
-      if (!this.isSubmit) {
+      if (!this.isStart) {
         return
       }
       const n = Math.floor(Math.random() * 10) + 1
       console.log(n)
       this.h += n
+      this.ws.send(
+        JSON.stringify({
+          event: 'events',
+          data: {
+            type: 'add',
+            data: {
+              ...this.form,
+              number: this.h,
+            },
+          },
+        })
+      )
     },
     submit() {
-      const url = 'http://localhost:3000/'
-      fetch(url, {
-        method: 'GET',
-        // headers: {
-        //   'Content-Type': 'application/json',
-        // },
-        // data: this.form,
-      })
-        .then((res) => res.json())
-        .then((res) => {
-          this.isSubmit = true
-          console.log(res)
+      this.$refs.ruleForm.validate((valid) => {
+        if (valid) {
           this.createWs()
-        })
+        }
+      })
     },
+
     createWs() {
       const ws = new WebSocket('ws://localhost:3002')
       this.ws = ws
@@ -93,18 +126,41 @@ export default {
         ws.send(
           JSON.stringify({
             event: 'events',
-            data: '测试ws 发送数据 hello',
+            data: {
+              type: 'match',
+              data: this.form,
+            },
           })
         )
       })
 
       ws.addEventListener('message', (event) => {
         const data = event.data
-        console.log('ws message data', data)
+        this.handleEvent(data)
       })
       ws.addEventListener('error', (event) => {
         console.log('ws 连接失败', event)
+        this.$message.error('ws 连接失败，请刷新页面再重试')
       })
+      ws.addEventListener('close', (event) => {
+        this.$message.error('ws 连接已关闭，请刷新页面再重试')
+      })
+    },
+
+    handleEvent(wsData) {
+      const data = JSON.parse(wsData).data
+      if (data.type === 'match') {
+        if (data.success) {
+          this.$message.success(data.data)
+          this.visible = false
+        } else {
+          this.$message.error(data.data)
+        }
+      } else if (data.type === 'start') {
+        this.isStart = true
+        this.$message.success('游戏已开始')
+      }
+      console.log('ws data', data)
     },
   },
   destroyed() {
@@ -112,6 +168,15 @@ export default {
   },
 }
 </script>
+<style lang="scss">
+.ipt-box {
+  .ant-modal-footer {
+    .ant-btn:first-child {
+      display: none;
+    }
+  }
+}
+</style>
 <style lang="scss" scoped>
 .home {
   width: 100%;
@@ -134,13 +199,13 @@ export default {
   }
 
   .box {
+    height: 100%;
+
     list-style: none;
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
     box-sizing: border-box;
-    height: 100%;
-    padding-top: 80px;
     overflow: hidden;
     li {
       width: 20%;
@@ -148,35 +213,6 @@ export default {
       border-top-right-radius: 40px;
       border-top-left-radius: 40px;
       max-height: 100%;
-    }
-  }
-  .ipt {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    padding-top: 50%;
-    > div {
-      margin-bottom: 16px;
-      font-size: 16px;
-      input {
-        height: 36px;
-        line-height: 36px;
-        font-size: 20px;
-        text-indent: 20px;
-        outline: none;
-        border: none;
-      }
-      button {
-        outline: none;
-        border: none;
-        background: #3366ff;
-        padding: 10px 18px;
-        border-radius: 4px;
-        font-size: 14px;
-        color: #fff;
-      }
     }
   }
 }

@@ -15,16 +15,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.WsStartGateway = void 0;
 const websockets_1 = require("@nestjs/websockets");
 const dgram_1 = require("dgram");
+const game_service_1 = require("./game/game.service");
 let WsStartGateway = class WsStartGateway {
+    constructor(gameService) {
+        this.gameService = gameService;
+        this.list = new Map();
+    }
     handleEvent(data, client) {
-        console.log('ws hello data', data);
-        const event = "events";
-        return {
-            event,
-            data: {
-                msg: 'ws 收到信息后返回'
-            },
-        };
+        console.log('接收到的ws数据：', data);
+        console.log(typeof data);
+        return this.gameService.handleEvent(data);
     }
 };
 __decorate([
@@ -32,11 +32,12 @@ __decorate([
     __param(0, (0, websockets_1.MessageBody)()),
     __param(1, (0, websockets_1.ConnectedSocket)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, dgram_1.Socket]),
+    __metadata("design:paramtypes", [Object, dgram_1.Socket]),
     __metadata("design:returntype", Object)
 ], WsStartGateway.prototype, "handleEvent", null);
 WsStartGateway = __decorate([
-    (0, websockets_1.WebSocketGateway)(3002)
+    (0, websockets_1.WebSocketGateway)(3002),
+    __metadata("design:paramtypes", [game_service_1.GameService])
 ], WsStartGateway);
 exports.WsStartGateway = WsStartGateway;
 //# sourceMappingURL=ws.gateway.js.map

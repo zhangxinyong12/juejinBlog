@@ -7,9 +7,45 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Document</title>
 </head>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+  }
+
+  ul {
+    list-style: none;
+    overflow: hidden;
+    /* display: flex; */
+  }
+
+  ul::after {
+    /* display: block;
+    content: '';
+    clear: both; */
+  }
+
+  li {
+    width: 30px;
+    height: 60px;
+    background-color: red;
+    margin-right: 20px;
+    float: left;
+  }
+
+  li:last-child {
+    margin-left: auto;
+    margin-right: 0;
+    float: right;
+  }
+</style>
 
 <body>
-
+  <ul>
+    <li>1</li>
+    <li>1</li>
+    <li>3</li>
+  </ul>
 </body>
 <script>
   function createWs() {
